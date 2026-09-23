@@ -27,7 +27,7 @@ defmodule Myphoenixapp.Worker do
   def handle_info(:schedule, state) do
     schedule_new_deployment(state.interval)
 
-    Logger.info("Running #{__MODULE__} Scheduler (/•ิ_•ิ) 🔥 (╯°□°)╯ 🔥🔥🔥🔥🔥 ")
+    Logger.info("Running #{__MODULE__} Scheduler [v0.4.4 hot-upgrade] 🔥🔥🔥")
 
     {:noreply, state}
   end

@@ -1,0 +1,65 @@
+name: Hot Upgrade Release
+
+run-name: Hot upgrade ${{ inputs.from_version }} -> ${{ inputs.target_version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_version:
+        description: "Version to upgrade from (existing tag)"
+        required: true
+        type: string
+      target_version:
+        description: "Version to upgrade to (existing tag)"
+        required: true
+        type: string
+
+env:
+  MIX_ENV: prod
+
+jobs:
+  hot-upgrade:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tags
+        run: |
+          git rev-parse "refs/tags/${{ inputs.from_version }}" >/dev/null || { echo "from tag missing"; exit 1; }
+          git rev-parse "refs/tags/${{ inputs.target_version }}" >/dev/null || { echo "target tag missing"; exit 1; }
+
+      - name: Setup BEAM
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28.5.0.3"
+          elixir-version: "1.19.5"
+
+      - name: Build FROM version (seeds _build for the appup diff)
+        run: |
+          git checkout ${{ inputs.from_version }}
+          mix deps.get
+          mix assets.setup
+          mix assets.deploy
+          mix release
+
+      - name: Build TARGET version (Jellyfish generates the relup vs FROM)
+        run: |
+          git checkout ${{ inputs.target_version }}
+          mix deps.get
+          mix assets.deploy
+          mix release
+
+      - name: Checksum
+        run: cd _build/prod && sha256sum myphoenixapp-*.tar.gz > checksum.txt
+
+      - name: Publish the release (with hot-upgrade info)
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          replacesArtifacts: true
+          tag: ${{ inputs.target_version }}
+          artifacts: "_build/prod/myphoenixapp-*.tar.gz,_build/prod/checksum.txt"
