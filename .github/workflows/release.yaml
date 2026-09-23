@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish the release under
+        required: true
+
+env:
+  MIX_ENV: prod
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup BEAM
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28.5.0.3"
+          elixir-version: "1.19.5"
+
+      - name: Build the release
+        run: |
+          mix deps.get
+          mix assets.setup
+          mix assets.deploy
+          mix release
+
+      - name: Checksum
+        run: cd _build/prod && sha256sum myphoenixapp-*.tar.gz > checksum.txt
+
+      - name: Publish the release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          replacesArtifacts: true
+          tag: ${{ github.event.inputs.tag || github.ref_name }}
+          artifacts: "_build/prod/myphoenixapp-*.tar.gz,_build/prod/checksum.txt"
